@@ -425,6 +425,10 @@ Element which draws lines series onto the chart
               || function(callback) { setTimeout(callback, 17); },
             getColorValue,
             processFunction,
+            renderingContext = {
+              index: 0,
+              previousFramesTimings: []
+            },
             currentRenderingCounter;
 
 
@@ -513,6 +517,13 @@ Element which draws lines series onto the chart
           return;
         }
 
+        //first render, measure our processing power
+        if(renderingContext.index === 0) {
+          var start = window.performance.now();
+
+          //start by rendering 500 pts
+        }
+
         var d = batches[currentIndex],
             opacity;
         _this.canvasContext.beginPath();
@@ -571,6 +582,23 @@ Element which draws lines series onto the chart
 
       this.canvasContext._pxLinesCleared = false;
       timer(processFunction);
+    },
+
+    _renderOneBatch: function() {
+      var d = batches[currentIndex],
+            opacity;
+        _this.canvasContext.beginPath();
+
+        for(var i = 0; i < d.length; i++) {
+
+          opacity = _this._isSerieMuted(d) ? _this.mutedOpacity : 1;
+          if(opacity !== 0) {
+            _this.line(d[i]);
+          }
+        }
+
+        _this.canvasContext.strokeStyle = _this.rgbToRgba(_this.completeSeriesConfig[_this.seriesId]['color'], opacity);
+        _this.canvasContext.stroke();
     },
 
     /**

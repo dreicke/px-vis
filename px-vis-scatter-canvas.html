@@ -445,6 +445,10 @@ Element which draws a scatter series onto the chart
         var batches = [],
             currentIndex = 0,
             j = 0,
+            renderingContext = {
+              index: 0,
+              previousFramesTiming: []
+            },
             size = Math.ceil(this.chartData.length/numberOfFrames),
             timer = window.requestAnimationFrame
               || window.webkitRequestAnimationFrame
@@ -472,15 +476,68 @@ Element which draws a scatter series onto the chart
             return;
           }
 
-          var d = batches[currentIndex];
-          this._renderOneBatch(d);
+          var d,
+              pointsRendered = 0,
+              start = window.performance.now(),
+              end;
 
-          currentIndex++;
 
-          if(currentIndex < numberOfFrames) {
+          if(renderingContext.index === 0) {
+
+            var duration,
+                multiplier;
+
+            //start by rendering 100 pts
+            this._renderOneBatch(this.chartData.slice(0, 10));
+            pointsRendered += 10;
+
+            duration = window.performance.now() - start;
+
+            //target 13ms: 16ms (60 fps) - 3ms for the browser to do other things
+            if(duration < 13) {
+              //find how much more we can render
+              multiplier = Math.floor(13 / duration);
+              this._renderOneBatch(this.chartData.slice(101, multiplier * 10));
+              pointsRendered += multiplier * 10;
+            }
+          } else {
+
+            //try to average last 5 frames
+            var reversedFrameIndex = renderingContext.previousFramesTiming.length - 1,
+                count = 0,
+                totPoints = 0,
+                totDuration = 0,
+                avgPoints,
+                avgDuration,
+                pointsAddition;
+
+            //calculate averages
+            while(count <= 5 && reversedFrameIndex >= 0) {
+              totPoints += renderingContext.previousFramesTiming[reversedFrameIndex][0];
+              totDuration += renderingContext.previousFramesTiming[reversedFrameIndex][1];
+              reversedFrameIndex--;
+              count++;
+            }
+
+            //adjust batch size
+            avgPoints = Math.floor(totPoints/count);
+            avgDuration = Math.floor(totDuration/count);
+            pointsAddition = Math.floor((13 - avgDuration) * (avgPoints/avgDuration));
+
+            //and draw
+            this._renderOneBatch(this.chartData.slice(renderingContext.index + 1, renderingContext.index + 1 + avgPoints + pointsAddition));
+            pointsRendered += avgPoints + pointsAddition;
+          }
+
+
+          renderingContext.previousFramesTiming.push([pointsRendered, window.performance.now() - start]);
+          renderingContext.index += pointsRendered;
+          console.log('render ' + pointsRendered + ' in ' + (window.performance.now() - start));
+
+          if(renderingContext.index < this.chartData.length) {
             //continue processing
             this.fire('px-vis-scatter-canvas-progressive-batch', { "numberOfFrames": numberOfFrames, "currentFrame":currentIndex });
-            timer(processData);
+            window.requestAnimationFrame(processData);
           } else {
             //finished drawing, reset drawing request counter
             this._renderingEnded(true, numberOfFrames);
