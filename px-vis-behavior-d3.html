@@ -1305,7 +1305,24 @@ PxVisBehaviorD3.lineShared = [{
     multiPath: {
       type: Boolean,
       value: false
+    },
+    /**
+     * Object used to store various info about current rendering state
+     */
+    _currentDrawingOptions: {
+      type: Object,
+      value: function() {
+        return {
+          'lastPointRenderedIndex': null,
+          'currentBatchStartIndex': 0
+        };
+      }
     }
+  },
+
+  _resetRenderingContext: function() {
+    this._currentDrawingOptions.lastPointRenderedIndex = null;
+    this._currentDrawingOptions.currentBatchStartIndex = 0;
   },
 
   _computeColorArr: function(categories,completeSeriesConfig,seriesId){
@@ -1399,20 +1416,27 @@ PxVisBehaviorD3.lineShared = [{
         .x(function(d,i) {
           if((_this.chartData[i][xKey] || _this.chartData[i][xKey] === 0) && (_this.chartData[i][yKey] || _this.chartData[i][yKey] === 0 ||  _this.chartData[i][yKey] === null)) {
             return ~~_this.x(d[xKey]);
-          } else {
-            return ~~_this.x(_this.chartData[counter][xKey]);
+          } else if(!renderToCanvas) {
+
+            //svg needs to have a point defined where canvas will just ignore this point if no value
+            return ~~_this.x(_this.chartData[_this._currentDrawingOptions.lastPointRenderedIndex][xKey]);
           }
         })
         .y(function(d,i) {
-          if((_this.chartData[i][xKey] || _this.chartData[i][xKey] === 0) && (_this.chartData[i][yKey] || _this.chartData[i][yKey] === 0 ||  _this.chartData[i][yKey] === null)) {
-            counter = i;
+          if((d[xKey] || d[xKey] === 0) && (d[yKey] || d[yKey] === 0 )) {
+            _this._currentDrawingOptions.lastPointRenderedIndex = _this._currentDrawingOptions.currentBatchStartIndex + i;
             return ~~_this.y(d[yKey]);
-          } else {
-            return ~~_this.y(_this.chartData[counter][yKey]);
+          } else if(!renderToCanvas) {
+
+            //svg needs to have a point defined where canvas will just ignore this point if no value
+            return ~~_this.y(_this.chartData[_this._currentDrawingOptions.lastPointRenderedIndex][yKey]);
           }
         })
-        .defined(function(d) {
-          return counter === null ? _this._isValidData(d[yKey]) : _this._isDataNotNull(d[yKey]);
+        .defined(function(d,i) {
+
+          //at first don't accept undefined since we don't have a previous point
+          //to attach to
+          return _this._currentDrawingOptions.lastPointRenderedIndex === null ? _this._isValidData(d[yKey]) : _this._isDataNotNull(d[yKey]);
         });
     }
 
